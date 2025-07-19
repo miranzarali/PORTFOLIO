@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIR ANZAR ALI :: HACKER_TERMINAL</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background: #000000;
+            --foreground: #00ff00;
+            --prompt-color: #00ff41;
+            --link-color: #00ffff;
+            --error-color: #ff0000;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: var(--background);
+            color: var(--foreground);
+            font-family: 'VT323', monospace;
+            font-size: 18px;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.27861; } 5% { opacity: 0.34769; } 10% { opacity: 0.54163; } 15% { opacity: 0.96541; } 20% { opacity: 0.18378; } 25% { opacity: 0.83852; } 30% { opacity: 0.52843; } 35% { opacity: 0.6485; } 40% { opacity: 0.26488; } 45% { opacity: 0.33615; } 50% { opacity: 0.7355; } 55% { opacity: 0.28875; } 60% { opacity: 0.45781; } 65% { opacity: 0.96588; } 70% { opacity: 0.03597; } 75% { opacity: 0.31688; } 80% { opacity: 0.9415; } 85% { opacity: 0.3434; } 90% { opacity: 0.56157; } 95% { opacity: 0.79373; } 100% { opacity: 0.21319; }
+        }
+
+        #terminal {
+            padding: 20px;
+            height: 100%;
+            box-sizing: border-box;
+            overflow-y: auto;
+            word-wrap: break-word;
+            overflow-x: auto;
+        }
+
+        #output {
+            white-space: pre;
+        }
+
+        .input-line {
+            display: flex;
+            align-items: center;
+        }
+
+        .prompt {
+            color: var(--prompt-color);
+            margin-right: 10px;
+            white-space: nowrap;
+        }
+
+        #command-input {
+            background: transparent;
+            border: none;
+            color: var(--foreground);
+            font-family: inherit;
+            font-size: inherit;
+            flex-grow: 1;
+            outline: none;
+        }
+        
+        #cursor {
+            width: 10px;
+            height: 1.2em;
+            background: var(--foreground);
+            display: inline-block;
+            vertical-align: middle;
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            from, to { background: transparent; }
+            50% { background: var(--foreground); }
+        }
+
+        a {
+            color: var(--link-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .error {
+            color: var(--error-color);
+        }
+
+        .highlight {
+            color: var(--link-color);
+        }
+
+        @media (max-width: 768px) {
+            html, body {
+                font-size: 16px;
+            }
+        }
+        @media (max-width: 480px) {
+            html, body {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="terminal" onclick="document.getElementById('command-input').focus();">
+        <div id="output"></div>
+        <div class="input-line">
+            <span id="prompt-text" class="prompt">guest@Socialhacker.io:~$</span>
+            <input type="text" id="command-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <span id="cursor"></span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const output = document.getElementById('output');
+            const commandInput = document.getElementById('command-input');
+            const terminal = document.getElementById('terminal');
+
+            let commandHistory = [];
+            let historyIndex = -1;
+            let visitorName = 'guest';
+            let hasSetName = false; 
+            let sessionLoginTime;
+
+            const commands = {
+                'banner': {
+                    description: 'Display the welcome banner.',
+                    execute: async () => {
+                        await typeText(bannerText);
+                        populateBannerInfo();
+                    }
+                },
+                'help': {
+                    description: 'Show this help message.',
+                    execute: async () => {
+                        await displayHelp();
+                    }
+                },
+                'setname': {
+                    description: 'Set your name (e.g., setname Neo).',
+                    execute: async (parts) => {
+                        if (parts.length > 0) {
+                            visitorName = parts.join(' ');
+                            document.getElementById('prompt-text').textContent = `${visitorName}@Socialhacker.io:~$`;
+                            
+                            if (!hasSetName) {
+                                hasSetName = true;
+                                await startMainSession();
+                            } else {
+                                await typeText(`Name has been updated to: ${visitorName}`);
+                            }
+                        } else {
+                            await typeText(`<span class="error">Usage: setname &lt;your_name&gt;</span>`);
+                        }
+                    }
+                },
+                'whoami': {
+                    description: 'Display your current user name.',
+                    execute: async () => await typeText(visitorName)
+                },
+                'creator': {
+                    description: "Display the creator's name.",
+                    execute: async () => await typeText('Mir Anzar Ali')
+                },
+                'about': {
+                    description: 'Learn more about the creator.',
+                    execute: async () => await typeText(aboutText)
+                },
+                'skills': {
+                    description: 'List technical skills.',
+                    execute: async () => await typeText(skillsText)
+                },
+                'projects': {
+                    description: 'Showcase key projects.',
+                    execute: async () => await typeText(projectsText)
+                },
+                'experience': {
+                    description: 'Display work experience.',
+                    execute: async () => await typeText(experienceText)
+                },
+                'certs': {
+                    description: 'List certifications. Alias for certifications.',
+                    execute: async () => await typeText(certificationsText)
+                },
+                'certifications': {
+                    description: 'List certifications.',
+                    execute: async () => await typeText(certificationsText)
+                },
+                'contact': {
+                    description: 'Display contact information.',
+                    execute: async () => await typeText(contactText)
+                },
+                'socials': {
+                    description: 'Find the creator on social media.',
+                    execute: async () => await typeText(socialsText)
+                },
+                'clear': {
+                    description: 'Clear the terminal screen.',
+                    execute: async () => {
+                        output.innerHTML = '';
+                        if(hasSetName) {
+                            await typeText(bannerText);
+                            populateBannerInfo();
+                        }
+                    }
+                },
+                'matrix': {
+                    description: 'Are you the one? (e.g. matrix Trinity)',
+                    execute: async (parts) => {
+                        const name = parts.length > 0 ? parts.join(' ') : visitorName;
+                        await typeText(`Wake up, ${name}... The Matrix has you. Follow the white rabbit.`);
+                    }
+                },
+                'exit': {
+                    description: 'Close the terminal session.',
+                    execute: () => { window.location.href = 'about:blank'; }
+                }
+            };
+            
+            // --- TEXT CONTENT ---
+
+            const initialPromptText = `Connection established. Welcome, unknown user.
+Please identify yourself to proceed.
+<span class="highlight">Usage:</span> setname <your_name>
+<span class="highlight">e.g.</span>   setname Trinity`;
+
+            const bannerText = `
+███╗   ███╗██╗██████╗      █████╗ ███╗   ██╗██████╗  █████╗      █████╗ ██╗     ██╗
+████╗ ████║██║██╔══██╗    ██╔══██╗████╗  ██║╚══██╔╝ ██╔══██╗██╔══██╗    ██╔══██╗██║     ██║
+██╔████╔██║██║██████╔╝    ███████║██╔██╗ ██║  ██╔╝  ███████║██████╔╝    ███████║██║     ██║
+██║╚██╔╝██║██║██╔══██╗    ██╔══██║██║╚██╗██║ ██╔╝   ██╔══██║██╔══██╗    ██╔══██║██║     ██║
+██║ ╚═╝ ██║██║██║  ██║    ██║  ██║██║ ╚████║███████╗██║  ██║██║  ██║    ██║  ██║███████╗██║
+╚═╝     ╚═╝╚═╝╚═╝  ╚═╝    ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝    ╚═╝  ╚═╝╚══════╝╚═╝
+
++-------------------------------------------------------------------------------------------------------------------------------+
+|                  <span class="highlight">  //      M I R   A N Z A R   A L I      //</span>                  |
+| Cybersecurity Intern @UptoSkills | CCIO Certified | Ex-Chair, ACM Chapter JNTUGV-CEV(A) |
+| VAPT | Red Team Enthusiast | Actively Upskilling                                |
++-------------------------------------------------------------------------------------------------------------------------------+
+
+<span class="prompt">System Information:</span>
+  OS         : SocialHackerOS v1.3.3.7 (Terminal Edition)
+  Host       : Socialhacker.io
+  Last Login : <span id="login-time-value"></span>
+  IP Address : 192.168.14.37
+  User       : <span id="user-value">-guest</span>
+
+<span class="highlight">Welcome to my interactive portfolio.</span>
+Type '<span class="prompt">help</span>' to see the list of available commands.
+`;
+
+            const aboutText = `
+<span class="highlight">>> ABOUT ME</span>
+
+Hello! I'm MIR ANZAR ALI, a dedicated security enthusiast with strong communication skills and a passion for cybersecurity. 
+Aspiring to become a Red Team specialist, showcasing a strong commitment to teamwork and continuous learning. 
+Skilled at collaborating effectively within a team, with an eagerness to grow and develop in the ever-evolving field of security.
+
+Currently, I am an intern at UptoSkills as a Penetration Tester, working on pentesting web applications. My experience also 
+includes an InfoSec Analyst Internship at BABLI IT Consulting, where I gained hands-on experience in cybersecurity fundamentals 
+including log analysis, vulnerability scanning, and security monitoring.`;
+
+            const skillsText = `
+<span class="highlight">>> TECHNICAL SKILLS</span>
+
+<span class="highlight">--- Penetration Testing & Tools ---</span>
+* Web & Network Penetration Testing
+* Vulnerability Assessment & Reporting
+* Burp Suite, Nmap, Wireshark, Metasploit, OWASP ZAP
+
+<span class="highlight">--- Security Concepts & Methodologies ---</span>
+* Threat Hunting, Basic Incident Response
+* Cybersecurity Awareness, SOC Fundamentals
+* Dark Web & Anonymity Concepts
+
+<span class="highlight">--- Programming & Operating Systems ---</span>
+* HTML, CSS, JavaScript, Python (Basic)
+* Linux (Ubuntu, Kali)
+`;
+            
+            const projectsText = `
+<span class="highlight">>> PROJECTS</span>
+
+<span class="highlight">--- Web Application Penetration Test Simulation ---</span>
+* Conducted a simulated penetration test on a vulnerable web application (e.g., OWASP Juice Shop, DVWA).
+* Identified common vulnerabilities such as SQL Injection, XSS, Broken Authentication, and insecure direct object references.
+* Documented findings and suggested remediation steps.
+* Tools: Burp Suite, OWASP Top 10, Vulnerability Reporting
+
+<span class="highlight">--- Home Lab Network Vulnerability Assessment ---</span>
+* Set up a virtual home lab environment with various operating systems and services.
+* Performed network reconnaissance using Nmap, identified open ports and services, and conducted vulnerability scans using OpenVAS.
+* Prioritized vulnerabilities and outlined a patching strategy.
+* Tools: Nmap, OpenVAS, Network Scanning
+`;
+
+            const experienceText = `
+<span class="highlight">>> WORK EXPERIENCE</span>
+
+<span class="highlight">--- Penetration Tester Intern - UptoSkills ---</span>
+* May 12, 2025 - Ongoing
+* Working on Pentesting web applications.
+
+<span class="highlight">--- InfoSec Analyst Intern - BABLI IT Consulting (Virtual) ---</span>
+* Apr 30, 2025 - May 06, 2025
+* Completed a 7-day internship on cybersecurity fundamentals including log analysis, vulnerability scanning, and security monitoring.
+
+<span class="highlight">--- Chair - ACM Student Chapter, JNTUGV-CEV ---</span>
+* Apr 2024 - June 2025
+* Led and organized technical/non-technical events, bootcamps, and cybersecurity awareness programs.
+`;
+
+            const certificationsText = `
+<span class="highlight">>> CERTIFICATIONS</span>
+
+* Certified Cybercrime Investigation Officer (CCIO) by ISAC [June, 2025]
+* Ethical Hacking Essentials, Network Defence Essentials & Dark Web and Anonymity - EC-Council [June/July, 2024]
+* Cyber Security Essentials - Data Space Academy [Nov, 2024]
+* Ethical Hacking (Theory + Practical) - Nikist Media [Nov, 2024]
+* Edunet Cyber Security - IBM Skills Build [Feb, 2024]
+* Ethics At Workplace CPEW by ISAC [June, 2025]
+* HTML, CSS & JavaScript - Coursera (John Hopkins University) [Oct, 2023]
+`;
+            
+            const contactText = `
+<span class="highlight">>> CONTACT ME</span>
+
+I'm always open to discussing new projects, collaborations, or opportunities.
+Feel free to reach out!
+
+* Email:    <a href="mailto:miranzarali@example.com">miranzarali@example.com</a>  (Replace with your actual email)
+* LinkedIn: <a href="https://linkedin.com/in/miranzarali" target="_blank">linkedin.com/in/miranzarali</a>
+`;
+
+            const socialsText = `
+<span class="highlight">>> CONNECT WITH ME</span>
+            
+* LinkedIn:  <a href="https://linkedin.com/in/miranzarali" target="_blank">linkedin.com/in/miranzarali</a>
+* Instagram: <a href="https://www.instagram.com/mir_anzar_ali?igsh=MTBnYnlybjc4MXNmYg==" target="_blank">instagram.com/mir_anzar_ali</a>
+`;
+
+            // --- CORE FUNCTIONS ---
+            
+            commandInput.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter') {
+                    const commandParts = commandInput.value.trim().split(' ');
+                    const command = commandParts[0].toLowerCase();
+                    const currentPrompt = document.getElementById('prompt-text').textContent;
+                    
+                    const promptLine = document.createElement('div');
+                    promptLine.innerHTML = `<span class="prompt">${currentPrompt}</span> ${commandInput.value}`;
+                    output.appendChild(promptLine);
+                    
+                    commandHistory.unshift(commandInput.value);
+                    historyIndex = -1;
+                    commandInput.value = '';
+                    
+                    if (commands[command]) {
+                        if (command === 'setname' || hasSetName) {
+                            await commands[command].execute(commandParts.slice(1));
+                        } else {
+                            await typeText(`<span class="error">Please set your name first. Usage: setname &lt;your_name&gt;</span>`);
+                        }
+                    } else if (command) {
+                        const errorText = `
++-------------------------------------------------+
+| <span class="error">ERROR: Command not found: "${command}"</span>         |
+| Type '<span class="highlight">help</span>' for a list of available commands. |
++-------------------------------------------------+`;
+                        await typeText(errorText);
+                    }
+                    
+                    terminal.scrollTop = terminal.scrollHeight;
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (historyIndex < commandHistory.length - 1) {
+                        historyIndex++;
+                        commandInput.value = commandHistory[historyIndex];
+                    }
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                     if (historyIndex > 0) {
+                        historyIndex--;
+                        commandInput.value = commandHistory[historyIndex];
+                    } else {
+                        historyIndex = -1;
+                        commandInput.value = "";
+                    }
+                }
+            });
+
+            async function displayHelp() {
+                let helpText = '\n<span class="highlight">AVAILABLE COMMANDS:</span>\n\n';
+                for (const cmd in commands) {
+                    helpText += `  <span class="highlight">${cmd.padEnd(15)}</span> ${commands[cmd].description}\n`;
+                }
+                await typeText(helpText);
+            }
+            
+            function typeText(text) {
+                return new Promise(resolve => {
+                    const textContainer = document.createElement('div');
+                    output.appendChild(textContainer);
+                    let i = 0;
+                    commandInput.disabled = true;
+
+                    function type() {
+                        if (i < text.length) {
+                            if (text[i] === '<') {
+                                const endIndex = text.indexOf('>', i);
+                                if (endIndex !== -1) {
+                                    textContainer.innerHTML += text.substring(i, endIndex + 1);
+                                    i = endIndex;
+                                }
+                            } else {
+                                textContainer.innerHTML += text[i];
+                            }
+                            i++;
+                            terminal.scrollTop = terminal.scrollHeight;
+                            setTimeout(type, 10);
+                        } else {
+                            commandInput.disabled = false;
+                            commandInput.focus();
+                            resolve();
+                        }
+                    }
+                    type();
+                });
+            }
+
+            // --- INITIALIZATION & SESSION LOGIC ---
+
+            function populateBannerInfo() {
+                const fullLoginString = `${sessionLoginTime.toLocaleDateString()} at ${sessionLoginTime.toLocaleTimeString()}`;
+                const loginTimeElement = document.getElementById('login-time-value');
+                const userElement = document.getElementById('user-value');
+                if (loginTimeElement) loginTimeElement.textContent = fullLoginString;
+                if (userElement) userElement.textContent = visitorName;
+            }
+
+            async function startMainSession() {
+                sessionLoginTime = new Date(); 
+
+                const bootSequence = [
+                    'Authenticating...',
+                    'Identity confirmed. Welcome, ' + visitorName + '.',
+                    'BOOTING SocialHackerOS v1.3.3.7...',
+                    'System check initiated...',
+                    'Loading kernel modules... [OK]',
+                    'Mounting virtual file systems... [OK]',
+                    'Initializing network interface eth0...',
+                    'Establishing secure connection... [OK]',
+                    'Firewall status: ACTIVE',
+                    'Awaiting user input...',
+                    ''
+                ];
+
+                for (const line of bootSequence) {
+                    await typeText(line);
+                }
+
+                await typeText(bannerText);
+                populateBannerInfo();
+            }
+            
+            async function init() {
+                output.innerHTML = ''; // Ensure a clean start
+                await typeText(initialPromptText);
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>

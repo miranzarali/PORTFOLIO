@@ -1,6 +1,6 @@
 # PORTFOLIO
 💻 My personal cybersecurity portfolio, presented as an interactive terminal.
-# > Mir Anzar Ali // HACKER_TERMINAL
+# > Mir Anzar Ali // TERMINAL
 
 <p align="center">
   <code><a href="https://linkedin.com/in/miranzarali" target="_blank">LinkedIn</a></code>
